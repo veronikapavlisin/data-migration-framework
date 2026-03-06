@@ -66,6 +66,11 @@ normal operations.
 Progress output allows operators to track migration progress and detect
 stalls or failures.
 
+### Self-healing execution
+
+A monitoring layer automatically restarts stalled migration processes while 
+safely resuming from the last processed record.
+
 ------------------------------------------------------------------------
 
 ## Project Structure

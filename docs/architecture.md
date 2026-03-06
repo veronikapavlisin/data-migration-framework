@@ -89,17 +89,40 @@ This allows operators to monitor long-running migrations.
 
 ------------------------------------------------------------------------
 
-### 5. Restart Logic
+### 5. Process Monitoring & Automatic Restart
 
-If the migration stops unexpectedly (for example due to a server
-restart), the process can resume safely.
+Long-running migrations in web environments can occasionally stall due to
+timeouts, resource limits, or unexpected runtime conditions.
 
-The system simply reloads the last processed ID and continues
-processing.
+To reduce the need for manual supervision, the migration script includes a
+lightweight monitoring mechanism implemented with a combination of PHP and
+JavaScript.
+
+The migration runs inside a child iframe, while a parent page monitors the
+progress output produced by the script.
+
+The migration script continuously prints progress indicators (dots and status
+messages). The parent monitoring script periodically checks whether the output
+inside the iframe is still growing.
+
+Monitoring logic:
+
+1. The parent page measures the length of the iframe output.
+2. If the output length increases, the migration is progressing normally.
+3. If the output does not change for a defined time window, the process is
+   assumed to be stuck.
+4. The parent page automatically reloads the iframe, restarting the migration
+   process.
+
+Because the migration tracks the ID of the last processed record, the process
+can safely resume from the last completed batch after a restart.
+
+This approach provides a simple self-healing mechanism that allows large
+migrations to run unattended for extended periods without blocking progress.
 
 This makes the migration **idempotent and safe for repeated execution**.
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
 ## Simplified Data Flow
 

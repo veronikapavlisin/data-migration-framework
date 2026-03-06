@@ -85,6 +85,23 @@ stalls or failures.
 
 ------------------------------------------------------------------------
 
+## Engineering Challenges
+
+The migration needed to process millions of historical battle records
+without affecting live gameplay servers.
+
+Key challenges:
+
+• Avoid long-running database locks
+• Ensure restart capability after crashes
+• Allow progress monitoring during multi-day migrations
+• Prevent partial updates across distributed environments
+
+The implemented batch migration framework solved these problems
+by combining restartable batch execution with transactional updates.
+
+------------------------------------------------------------------------
+
 ## Author
 
 Veronika Pavlisin\

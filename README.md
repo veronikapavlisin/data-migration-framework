@@ -42,6 +42,10 @@ Approximate scale of the operation:
 The migration framework was designed to safely process this workload
 while keeping the game servers operational and avoiding excessive
 database load.
+
+The batch processing and restartable execution model allowed the migration
+to run continuously while automatically recovering from occasional stalls
+or interruptions.
  
 ------------------------------------------------------------------------
 

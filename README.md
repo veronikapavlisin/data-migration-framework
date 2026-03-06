@@ -65,6 +65,11 @@ G --> H[JS Watchdog Process]
 
 H -->|Process Stalled| B
 ```
+
+The migration framework was designed to safely process millions of records
+in production environments while allowing automatic recovery from stalled
+processes.
+
 ------------------------------------------------------------------------
 
 ## Key Design Principles

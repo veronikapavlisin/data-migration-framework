@@ -28,6 +28,23 @@ service was critical.
 
 ------------------------------------------------------------------------
 
+## Production Scale
+
+The migration was executed across a distributed production environment.
+
+Approximate scale of the operation:
+
+- ~90 game databases
+- hosted across 13 database servers
+- millions of historical battle records processed
+- ~4 days total runtime to complete the migration
+
+The migration framework was designed to safely process this workload
+while keeping the game servers operational and avoiding excessive
+database load.
+ 
+------------------------------------------------------------------------
+
 ## Architecture Overview
 
 Game Database\

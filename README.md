@@ -44,6 +44,29 @@ Monitoring Output
 
 ------------------------------------------------------------------------
 
+## Architecture Diagram
+
+```mermaid
+flowchart TD
+
+A[Game Database] --> B[Migration Controller]
+
+B --> C[Batch Processing Engine]
+
+C --> D[Battle Score Calculation]
+
+D --> E[Transactional Database Update]
+
+E --> F[Progress Tracking]
+
+F --> G[Monitoring Output]
+
+G --> H[JS Watchdog Process]
+
+H -->|Process Stalled| B
+```
+------------------------------------------------------------------------
+
 ## Key Design Principles
 
 ### Batch Processing

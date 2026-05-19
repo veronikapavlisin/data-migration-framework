@@ -45,8 +45,8 @@ $game_info = [
 	'do' => [
 		'local' => [
 			1 => [
-				'name' => 'Charlie',
-				'ip' => 'desertops_mdb',
+				'name' => 'Game',
+				'ip' => 'game_mdb',
 				'db' => 'do_beta_1',
 				'type' => 'endless',
 				'server' => 'world1',
@@ -121,11 +121,11 @@ function is_event_running( \mysqli $mysqli, ...$event ): bool {
 		SELECT
 			IFNULL( (
 				SELECT
-					COUNT( `eventID` ) AS `count`
+					COUNT( `ID` ) AS `count`
 				FROM
-					`game_event`
+					`table`
 				WHERE
-					`eventName` IN("'
+					`name` IN("'
 						. \implode(
 							'","',
 							\array_map(
@@ -149,7 +149,7 @@ function is_event_running( \mysqli $mysqli, ...$event ): bool {
 }
 
 /**
- * Helper to calculate battle points
+ * Helper to calculate points
  *
  * @param mysqli $mysqli
  * @param bool $won_battle
@@ -162,7 +162,7 @@ function is_event_running( \mysqli $mysqli, ...$event ): bool {
  *
  * @throws Exception
  */
-function calculate_battle_score(
+function calculate(
 	\mysqli $mysqli,
 	bool $won_battle,
 	int $bash_level,
@@ -182,12 +182,12 @@ function calculate_battle_score(
 		'CONFIG_BATTLE_WIN_POINTS',
 		$realm
 	);
-	$battle_loose_attacker_points = \fetch_config(
+	$battle_loose_a_points = \fetch_config(
 		$mysqli,
 		'CONFIG_ATTACKER_LOSS_POINTS',
 		$realm
 	);
-	$battle_loose_defender_points = \fetch_config(
+	$battle_loose_d_points = \fetch_config(
 		$mysqli,
 		'CONFIG_DEFENDER_LOSS_POINTS',
 		$realm
@@ -197,8 +197,8 @@ function calculate_battle_score(
 		return \bcsub(
 			0,
 			true === $is_attacker
-				? $battle_loose_attacker_points
-				: $battle_loose_defender_points
+				? $battle_loose_a_points
+				: $battle_loose_d_points
 		);
 	}
 
@@ -381,7 +381,7 @@ foreach( $game_info as $game => $game_data ) {
 				// set autocommit to false
 				$mysqli->autocommit( false );
 			}
-			// get last handled military action id
+			// get last handled ma id
 			$last_handled_military_action_id = ( int )\fetch_config(
 				$mysqli,
 				'CONFIG_LAST_PROCESSED_ACTION_ID',
@@ -390,7 +390,7 @@ foreach( $game_info as $game => $game_data ) {
 			// select all actions where loot transferred is true
 			$count_result = $mysqli->query( '
 				SELECT COUNT(id) AS count
-                FROM battle_actions
+                FROM actions
                 WHERE id > :last_processed
                 ORDER BY id'
 			);
@@ -403,17 +403,16 @@ foreach( $game_info as $game => $game_data ) {
 			$query = '
 				SELECT
                     id,
-                    attacker_id,
-                    defender_id,
-                    attacker_points,
-                    defender_points,
-                    battle_result
-                FROM battle_actions
+                    a_id,
+                    d_id,
+                    a_points,
+                    d_points,
+                    b_result
+                FROM actions
                 WHERE id > :last_processed
                 ORDER BY id
                 LIMIT :batch_size;
 
-			// select all actions where loot transferred is true
 			try {
 				$action_result = $mysqli->query( $query );
 			} catch ( \Exception $action_exception ) {}
@@ -434,7 +433,7 @@ foreach( $game_info as $game => $game_data ) {
 				}
 				echo \query_output(
 					'failed',
-					\EOL . 'Error while fetching military action data.' . \EOL . $error_info
+					\EOL . 'Error while fetching ma data.' . \EOL . $error_info
 				);
 				\flush();\ob_flush();\flush();
 				// rollback and set autocommit back to true
@@ -450,7 +449,7 @@ foreach( $game_info as $game => $game_data ) {
 			$progress_last = 0;
 			$porgress_time = \microtime( true );
 			$user_exist = [];
-			$new_handled_military_action_id = 0;
+			$new_ma_id = 0;
 			// done indicator
 			if( 0 >= $action_result->num_rows ) {
 				echo \EOL . \query_output( 'success', 'done' ) . \EOL;
@@ -460,79 +459,77 @@ foreach( $game_info as $game => $game_data ) {
 			while ( $row = $action_result->fetch_assoc() ) {
 				++$progress_count;
 				try {
-					// decode owner and target score
-					$owner_score = \json_decode(
+					$o_score = \json_decode(
 						$row[ 'owner_score' ],
 						true,
 						512,
 						\JSON_THROW_ON_ERROR
 					);
-					$target_score = \json_decode(
+					$t_score = \json_decode(
 						$row[ 'target_score' ],
 						true,
 						512,
 						\JSON_THROW_ON_ERROR
 					);
-					// populate start points
-					$owner_score[ 'player_start' ] = $row[ 'owner_start_points' ];
-					$target_score[ 'player_start' ] = $row[ 'target_start_points' ];
+					$o_score[ 'player_start' ] = $row[ 'owner_start_points' ];
+					$t_score[ 'player_start' ] = $row[ 'target_start_points' ];
 					if (
-						'Lasso\\Core\\Hook\\Request\\User' === $row[ 'owner_type' ]
-						&& 'Lasso\\Core\\Hook\\Request\\User' === $row[ 'target_type' ]
+						'App\\Domain\\User' === $row[ 'owner_type' ]
+						&& 'App\\Domain\\User' === $row[ 'target_type' ]
 					) {
 						// retrieve value from cache and set if not found in previous query
-						$row[ 'owner_exists' ] = 0 < ( int )$row[ 'attacker_id' ];
-						$row[ 'target_exists' ] = 0 < ( int )$row[ 'defender_id' ];
+						$row[ 'o_exists' ] = 0 < ( int )$row[ 'a_id' ];
+						$row[ 't_exists' ] = 0 < ( int )$row[ 'd_id' ];
 						// calculate if both are existing
-						if ( $row[ 'owner_exists' ] && $row[ 'target_exists' ] ) {
-							$owner_score[ 'battle_score' ] = \calculate_battle_score(
+						if ( $row[ 'o_exists' ] && $row[ 't_exists' ] ) {
+							$o_score[ 'battle_score' ] = \(
 								$mysqli,
-								'won' === $row[ 'owner_won_lost_status' ],
+								'won' === $row[ 'owl_status' ],
 								$row[ 'bashLevel' ],
 								true,
-								$row[ 'owner_before_calculated' ],
-								$row[ 'target_before_calculated' ],
+								$row[ 'ob_calculated' ],
+								$row[ 'tb_calculated' ],
 								$world_data[ 'name' ]
 							);
-							$target_score[ 'battle_score' ] = \calculate_battle_score(
+							$t_score[ 'battle_score' ] = \(
 								$mysqli,
 								'won' === $row[ 'target_won_lost_status' ],
 								$row[ 'bashLevel' ],
 								false,
-								$row[ 'owner_before_calculated' ],
-								$row[ 'target_before_calculated' ],
+								$row[ 'ob_calculated' ],
+								$row[ 'tb_calculated' ],
 								$world_data[ 'name' ]
 							);
 						}
 						// push back points before calculated to json
-						$owner_score[ 'player_before_calculated' ] = $row[ 'owner_before_calculated' ];
-						$target_score[ 'player_before_calculated' ] = $row[ 'target_before_calculated' ];
+						$o_score[ 'pb_calculated' ] = $row[ 'ob_calculated' ];
+						$t_score[ 'pb_calculated' ] = $row[ 'tb_calculated' ];
 					}
 					// encode to json again
-					$owner_score = \json_encode( $owner_score, \JSON_THROW_ON_ERROR );
-					$target_score = \json_encode( $target_score, \JSON_THROW_ON_ERROR );
+					$o_score = \json_encode( $o_score, \JSON_THROW_ON_ERROR );
+					$t_score = \json_encode( $t_score, \JSON_THROW_ON_ERROR );
 					// build update query
-					$update_military_action = '
-						UPDATE battle_actions
-        SET attacker_score = :attacker_score,
-            defender_score = :defender_score
+					$update_ma = '
+						UPDATE actions
+        SET a_score = :a_score,
+            d_score = :d_score
         WHERE id = ' . ( int )$row[ 'id' ];
 					// echo query during dry run
 					if ( $dry_run ) {
-						echo $update_military_action . \EOL;
+						echo $update_ma . \EOL;
 						\flush();\ob_flush();\flush();
 					// execute query if not dry run
 					} else {
-						if ( ! $mysqli->query( $update_military_action ) ) {
+						if ( ! $mysqli->query( $update_ma ) ) {
 							throw new \Exception(
-								'Update query for military action failed! > ' . \EOL
-									. $update_military_action . \EOL
+								'Update query for ma failed! > ' . \EOL
+									. $update_ma . \EOL
 									. $mysqli->error
 							);
 						}
 					}
 					// update config
-					$new_handled_military_action_id = ( int )$row[ 'id' ];
+					$new_ma_id = ( int )$row[ 'id' ];
 				} catch ( \Exception $exception ) {
 					echo \query_output(
 						'failed',
@@ -579,17 +576,17 @@ foreach( $game_info as $game => $game_data ) {
 					\flush(); \ob_flush(); \flush();
 				}
 
-				unset( $owner_score, $target_score );
+				unset( $o_score, $t_score );
 			}
 			$action_result->close();
 			unset( $row, $action_result );
 			// build config update query
-			if( 0 < $new_handled_military_action_id ) {
+			if( 0 < $new_ma_id ) {
 				$update_config = '
 					UPDATE
 						`config`
 					SET
-						`value` = ' . ( int )$new_handled_military_action_id . '
+						`value` = ' . ( int )$new_ma_id . '
 					WHERE
 						`name` = "CONFIG_LAST_PROCESSED_ACTION_ID"';
 				// echo query during dry run

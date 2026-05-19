@@ -141,8 +141,8 @@ safely resuming from the last processed record.
 
 ## Engineering Challenges
 
-The migration needed to process millions of historical battle records
-without affecting live gameplay servers.
+The migration needed to process millions of historical data records
+without affecting production servers.
 
 Key challenges:
 
